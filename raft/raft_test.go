@@ -1672,6 +1672,29 @@ func TestSlowNodeRestore(t *testing.T) {
 	}
 }
 
+func TestSnapshotSendingAfterAppResp(t *testing.T) {
+	nt := newNetwork(nil, nil, nil)
+	nt.send(pb.Message{From: 1, To: 1, Type: pb.MsgHup})
+
+	nt.isolate(3)
+	for j := 0; j <= 100; j++ {
+		nt.send(pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{}}})
+	}
+	lead := nt.peers[1].(*raft)
+	nextEnts(lead, nt.storage[1])
+	nt.storage[1].CreateSnapshot(lead.raftLog.applied, &pb.ConfState{Nodes: lead.nodes()}, nil)
+	nt.storage[1].Compact(lead.raftLog.applied)
+
+	nt.recover()
+
+	// trigger a snapshot
+	nt.send(pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{}}})
+
+	if lead.prs[3].Match != lead.prs[2].Match {
+		t.Fatalf("Node 3 has match %x, want %x", lead.prs[3].Match, lead.prs[2].Match)
+	}
+}
+
 // TestStepConfig tests that when raft step msgProp in EntryConfChange type,
 // it appends the entry to log and sets pendingConf to be true.
 func TestStepConfig(t *testing.T) {

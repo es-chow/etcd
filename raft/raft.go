@@ -625,6 +625,7 @@ func stepLeader(r *raft, m pb.Message) {
 				r.logger.Debugf("%x decreased progress of %x to [%s]", r.id, m.From, pr)
 				if pr.State == ProgressStateReplicate {
 					pr.becomeProbe()
+					pr.RecentActive = true
 				}
 				r.sendAppend(m.From)
 			}
@@ -634,9 +635,11 @@ func stepLeader(r *raft, m pb.Message) {
 				switch {
 				case pr.State == ProgressStateProbe:
 					pr.becomeReplicate()
+					pr.RecentActive = true
 				case pr.State == ProgressStateSnapshot && pr.maybeSnapshotAbort():
 					r.logger.Debugf("%x snapshot aborted, resumed sending replication messages to %x [%s]", r.id, m.From, pr)
 					pr.becomeProbe()
+					pr.RecentActive = true
 				case pr.State == ProgressStateReplicate:
 					pr.ins.freeTo(m.Index)
 				}
